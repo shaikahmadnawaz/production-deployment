@@ -1,0 +1,30 @@
+# Description: Docker Compose file for Node.js and MongoDB services
+
+# Every service is one container
+
+services:
+  mongoserver:
+    image: mongo
+    container_name: mongodb-server
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=root
+    volumes:
+      - ~/mongo/data:/data/db
+    networks:
+      - nodejs-mongodb-network
+
+  nodejs-backend:
+    image: shaikahmadnawaz/nodejs-backend:v1
+    container_name: nodejs-server
+    ports:
+      - 5000:5000
+    networks:
+      - nodejs-mongodb-network
+    env_file: .env
+    depends_on:
+      - mongoserver
+
+networks:
+  nodejs-mongodb-network:
+    driver: bridge
