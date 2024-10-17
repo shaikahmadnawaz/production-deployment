@@ -1,110 +1,127 @@
-# Node.js Production Deployment with Docker
+# Node.js and MongoDB Docker Compose Setup
 
-This repository contains a Node.js application deployed using Docker with a multi-stage build process. The goal is to create an optimized production image using Alpine Linux and PM2 as the process manager.
+This repository contains a setup for running a Node.js backend service and a MongoDB database using Docker Compose. It defines two services, `mongoserver` for the MongoDB instance and `nodejs-backend` for the Node.js application, each running in its own container.
 
 ## Prerequisites
 
 - Docker installed on your machine.
-- Node.js and npm (for local development, if needed).
+- Docker Compose installed on your machine.
 
-## Features
-
-- **Multi-stage Docker build**: The application is built in one stage (`builder`) and then only the production code is copied to the final image, reducing image size.
-- **PM2 Process Manager**: The application is run using PM2 to ensure continuous availability and manage multiple instances.
-- **Non-root user**: The application runs as the `node` user for added security.
-
-## Dockerfile Breakdown
-
-1. **Builder Stage**:
-
-   - Uses `node:20-alpine` for lightweight builds.
-   - Installs dependencies and builds the Node.js app.
-
-2. **Final Production Stage**:
-   - Uses `node:20-alpine`.
-   - Installs only production dependencies.
-   - Copies the built app from the builder stage.
-   - Runs the app using PM2 with the `ecosystem.config.js` file.
-
-## Build and Run the Docker Image
-
-### 1. Build the Docker Image
-
-To build the Docker image for your application, run the following command:
+## Project Structure
 
 ```bash
-docker build -t shaikahmadnawaz/nodejs-backend:v1 . --platform linux/amd64
+.
+├── docker-compose.yaml    # Docker Compose file to orchestrate services
+├── .env                  # Environment variables for the Node.js backend (not included in repo, create this file)
+└── README.md             # Project documentation (this file)
 ```
 
-![Docker Build](./assets/build.png)
+## Docker Services
 
-`docker image ls` will show the newly created image:
+This setup uses Docker Compose to define and manage the following services:
+
+### 1. **MongoDB (`mongoserver`)**
+
+- Runs the official MongoDB image.
+- Sets root username and password using environment variables.
+- Persists MongoDB data to a volume on the host machine (`~/mongo/data`).
+- Connected to a custom Docker network for communication with the Node.js service.
+
+### 2. **Node.js Backend (`nodejs-backend`)**
+
+- Runs a custom Node.js backend image (`shaikahmadnawaz/nodejs-backend:v1`).
+- Maps port `5000` of the container to port `5000` on the host, making the application accessible via `http://localhost:5000`.
+- Loads environment variables from an `.env` file.
+- Depends on the MongoDB service to ensure MongoDB starts first.
+
+## Setup Instructions
+
+Follow these steps to get the Node.js and MongoDB services up and running:
+
+### 1. Clone the Repository
 
 ```bash
-REPOSITORY                     TAG       IMAGE ID       CREATED          SIZE
-shaikahmadnawaz/nodejs-backend v1        1a2b3c4d5e6f   1 minute ago    100MB
+git clone [https://github.com/shaikahmadnawaz/production-deployment.git](https://github.com/shaikahmadnawaz/production-deployment.git)
+cd production-deployment/nodejs-mongodb
 ```
 
-If we hasent used multistage build then the image size would be around 1GB.
+### 2. Create an `.env` File
 
-### 2. Push the Docker Image to Docker Hub
+In the root directory, create a file named `.env` to store environment variables for the Node.js application.
 
-If you want to push the image to Docker Hub, you can tag it with your Docker Hub username and push it:
-
-Before pushing the image to Docker Hub, you need to login to Docker Hub using `docker login` command.
+Example `.env` file:
 
 ```bash
-docker push shaikahmadnawaz/nodejs-backend:v1
+# Example environment variables for Node.js backend
+MONGO_URL=mongodb://root:root@mongoserver:27017/mydatabase?authSource=admin
+PORT=5000
+JWT_SECRET=your-secret-key
 ```
 
-![Docker Push](./assets/push.png)
+- `MONGO_URL`: Connection string for MongoDB.
+- `PORT`: Port where your Node.js app will run.
+- `JWT_SECRET`: Example secret for JWT authentication (customize based on your app).
 
-![Docker Hub](./assets/dockerhub.png)
+### 3. Run the Services with Docker Compose
 
-### 3. Run the Docker Container
-
-Once the image is built, you can run it in a Docker container:
+To start both the MongoDB and Node.js services, run the following command:
 
 ```bash
-docker run -d -p 5000:5000 shaikahmadnawaz/nodejs-backend:v1
+docker-compose up -d
 ```
 
-This maps the container's port `5000` to your local machine's port `5000`.
+- The `-d` flag runs the services in detached mode, allowing them to run in the background.
 
-### 3. Stop the Docker Container
+### 4. Access the Node.js Application
 
-To stop the running container, first find the container ID using:
+Once the services are up, you can access the Node.js backend at:
 
 ```bash
-docker ps
+http://localhost:5000
 ```
 
-Then, stop it using:
+Make sure the backend is listening on port `5000`, as defined in the `docker-compose.yaml` file.
+
+### 5. Stopping the Services
+
+To stop the running services, use:
 
 ```bash
-docker stop <container_id>
+docker-compose down
 ```
 
-### 4. Docker Compose (Optional)
+This will stop and remove the containers but will keep the MongoDB data in the local volume (`~/mongo/data`).
 
-If you want to manage multiple containers or services, you can add a `docker-compose.yml` file to orchestrate your services.
+## Docker Compose Breakdown
 
-## Environment Variables
+### MongoDB (`mongoserver`)
 
-The following environment variables can be set to configure the Node.js environment:
+- **Image**: Official MongoDB Docker image.
+- **Environment Variables**: `MONGO_INITDB_ROOT_USERNAME` and `MONGO_INITDB_ROOT_PASSWORD` are used to set the root user's credentials.
+- **Volumes**: Data is stored in a persistent volume on the host machine (`~/mongo/data:/data/db`).
+- **Network**: Uses a custom bridge network (`nodejs-mongodb-network`) for communication with the Node.js backend.
 
-- `NODE_ENV`: Set to `production` in the Dockerfile to install only production dependencies.
+### Node.js Backend (`nodejs-backend`)
 
-## Application Monitoring with PM2
+- **Image**: Custom Node.js backend image (`shaikahmadnawaz/nodejs-backend:v1`).
+- **Ports**: Exposes port `5000` for the backend service.
+- **Env File**: Loads environment variables from a `.env` file.
+- **depends_on**: Ensures the MongoDB service starts before the Node.js backend.
 
-- The app is managed using PM2, a process manager for Node.js applications, which handles restarts and clustering.
-- The `ecosystem.config.js` file defines how PM2 runs the application, including the number of instances.
+## Networks
 
-## Exposed Ports
+The Docker Compose file creates a custom network (`nodejs-mongodb-network`) using the bridge driver, which allows containers to communicate with each other securely.
 
-- **5000**: The application is served on port `5000`. You can access it by visiting `http://localhost:5000` after running the container.
+## Additional Commands
 
-## Notes
+- To view the logs of the running containers:
 
-- Make sure the `ecosystem.config.js` file is properly configured for PM2 to handle the process management.
-- The build artifacts (from `npm run build`) are copied into the production image, so ensure your build process generates the necessary output files.
+  ```bash
+  docker-compose logs -f
+  ```
+
+- To restart the services after making changes:
+
+  ```bash
+  docker-compose restart
+  ```

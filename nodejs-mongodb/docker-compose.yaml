@@ -1,30 +1,46 @@
 # Description: Docker Compose file for Node.js and MongoDB services
 
-# Every service is one container
-
+# Define services, where each service represents a separate container
 services:
+  # MongoDB Service
   mongoserver:
+    # Use the official MongoDB image from Docker Hub
     image: mongo
+    # Name of the MongoDB container
     container_name: mongodb-server
+    # Set environment variables for MongoDB root username and password
     environment:
       - MONGO_INITDB_ROOT_USERNAME=root
       - MONGO_INITDB_ROOT_PASSWORD=root
+    # Map the local directory (on the host machine) to the MongoDB data directory inside the container
+    # This ensures MongoDB data is persisted on the host machine, even after the container stops
     volumes:
       - ~/mongo/data:/data/db
+    # Connect the MongoDB container to the custom network shared with the Node.js container
     networks:
       - nodejs-mongodb-network
 
+  # Node.js Backend Service
   nodejs-backend:
+    # Use the specified Node.js backend image from Docker Hub (replace this with your actual image name)
     image: shaikahmadnawaz/nodejs-backend:v1
+    # Name of the Node.js container
     container_name: nodejs-server
+    # Expose and map port 5000 of the container to port 5000 on the host machine, allowing access to the Node.js app
     ports:
       - 5000:5000
+    # Connect the Node.js container to the same network as MongoDB for communication
     networks:
       - nodejs-mongodb-network
+    # Use an external `.env` file to load environment variables for the Node.js app (ensure `.env` exists in your project)
     env_file: .env
+    # Specify that this service (Node.js backend) depends on the MongoDB service
+    # Ensures MongoDB starts before the Node.js container
     depends_on:
       - mongoserver
 
+# Define a custom network to allow communication between services (MongoDB and Node.js)
 networks:
   nodejs-mongodb-network:
+    # Use the 'bridge' network driver (Docker’s default network driver), which allows isolated communication between containers
     driver: bridge
